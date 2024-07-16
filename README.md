@@ -74,5 +74,3 @@ Retrieves the address of the contract owner.
 - Only the contract owner can change the exchange rate.
 - Users should verify the exchange rate before swapping.
 - This contract has not been audited and is for educational purposes only.
-
-## License

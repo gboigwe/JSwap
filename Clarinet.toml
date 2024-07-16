@@ -1,7 +1,7 @@
 [project]
 name = 'JSwap'
-description = ''
-authors = []
+description = 'A smart contract that converts btc to stacks'
+authors = [Gbolahan Akande]
 telemetry = true
 cache_dir = './.cache'
 requirements = []
