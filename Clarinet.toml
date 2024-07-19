@@ -1,14 +1,16 @@
 [project]
 name = 'JSwap'
 description = 'A smart contract that converts btc to stacks'
-authors = [Gbolahan Akande]
+authors = ["Gbolahan Akande"]
 telemetry = true
 cache_dir = './.cache'
 requirements = []
+
 [contracts.JSwap]
 path = 'contracts/JSwap.clar'
 clarity_version = 2
 epoch = 2.5
+
 [repl.analysis]
 passes = ['check_checker']
 
