@@ -4,15 +4,21 @@
 (define-constant ERR_UNAUTHORIZED (err u3))
 (define-constant ERR_INVALID_SWAP_STATUS (err u4))
 (define-constant ERR_ORACLE_UPDATE_FAILED (err u5))
+;; Add this to your existing error constants
+(define-constant ERR_INVALID_INPUT (err u6))
 
 ;; Oracle contract
-(define-constant ORACLE_CONTRACT .btc-stx-oracle)
+;; (define-constant ORACLE_CONTRACT .btc-stx-oracle)
 
 ;; Governance token
 (define-constant GOVERNANCE_TOKEN .governance-token)
 
 ;; Minimum governance tokens required to swap
 (define-data-var min-governance-tokens uint u100)
+
+;; Constants for governance token limits
+(define-constant MIN_GOVERNANCE_TOKENS u100)
+(define-constant MAX_GOVERNANCE_TOKENS u10000)
 
 ;; Swap status
 (define-data-var swap-in-progress bool false)
@@ -28,10 +34,12 @@
     (let
         (
             (sender tx-sender)
-            (exchange-rate (unwrap! (contract-call? ORACLE_CONTRACT get-exchange-rate) ERR_ORACLE_UPDATE_FAILED))
+            ;; (exchange-rate (unwrap! (contract-call? ORACLE_CONTRACT get-exchange-rate) ERR_ORACLE_UPDATE_FAILED))
+            (exchange-rate u10000) ;; Mock exchange rate: 1 BTC = 10000 STX
             (stx-amount (* btc-amount exchange-rate))
             (expiry (+ block-height u144)) ;; Set expiry to ~24 hours (assuming 10-minute blocks)
-            (user-balance (unwrap! (contract-call? GOVERNANCE_TOKEN get-balance sender) ERR_UNAUTHORIZED))
+            ;; (user-balance (unwrap! (contract-call? GOVERNANCE_TOKEN get-balance sender) ERR_UNAUTHORIZED))
+            (user-balance u1000) ;; Mock governance token balance
         )
         (asserts! (not (var-get swap-in-progress)) ERR_INVALID_SWAP_STATUS)
         (asserts! (>= (stx-get-balance sender) stx-amount) ERR_INSUFFICIENT_BALANCE)
@@ -82,7 +90,10 @@
 ;; Function to update the minimum required governance tokens
 (define-public (update-min-governance-tokens (new-min uint))
     (begin
-        (asserts! (is-eq tx-sender (contract-owner)) ERR_UNAUTHORIZED)
+        (asserts! (is-eq tx-sender (var-get contract-owner)) ERR_UNAUTHORIZED)
+        (asserts! (and (>= new-min MIN_GOVERNANCE_TOKENS) 
+                       (<= new-min MAX_GOVERNANCE_TOKENS)) 
+                       (err u6)) ;; New error code for invalid input
         (ok (var-set min-governance-tokens new-min))
     )
 )
