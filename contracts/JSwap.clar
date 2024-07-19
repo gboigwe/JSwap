@@ -1,11 +1,18 @@
-;; Define error codes
+;; Error codes
 (define-constant ERR_INSUFFICIENT_BALANCE (err u1))
 (define-constant ERR_TRANSFER_FAILED (err u2))
 (define-constant ERR_UNAUTHORIZED (err u3))
 (define-constant ERR_INVALID_SWAP_STATUS (err u4))
+(define-constant ERR_ORACLE_UPDATE_FAILED (err u5))
 
-;; Define the exchange rate (100 STX per 1 BTC)
-(define-data-var exchange-rate uint u100)
+;; Oracle contract
+(define-constant ORACLE_CONTRACT .btc-stx-oracle)
+
+;; Governance token
+(define-constant GOVERNANCE_TOKEN .governance-token)
+
+;; Minimum governance tokens required to swap
+(define-data-var min-governance-tokens uint u100)
 
 ;; Swap status
 (define-data-var swap-in-progress bool false)
@@ -20,12 +27,15 @@
 (define-public (initiate-swap (btc-amount uint))
     (let
         (
-            (stx-amount (* btc-amount (var-get exchange-rate)))
             (sender tx-sender)
+            (exchange-rate (unwrap! (contract-call? ORACLE_CONTRACT get-exchange-rate) ERR_ORACLE_UPDATE_FAILED))
+            (stx-amount (* btc-amount exchange-rate))
             (expiry (+ block-height u144)) ;; Set expiry to ~24 hours (assuming 10-minute blocks)
+            (user-balance (unwrap! (contract-call? GOVERNANCE_TOKEN get-balance sender) ERR_UNAUTHORIZED))
         )
         (asserts! (not (var-get swap-in-progress)) ERR_INVALID_SWAP_STATUS)
         (asserts! (>= (stx-get-balance sender) stx-amount) ERR_INSUFFICIENT_BALANCE)
+        (asserts! (>= user-balance (var-get min-governance-tokens)) ERR_UNAUTHORIZED)
         
         (var-set swap-in-progress true)
         (map-set pending-swaps sender { btc-amount: btc-amount, stx-amount: stx-amount, expiry: expiry })
@@ -69,17 +79,17 @@
     )
 )
 
-;; Function to set the exchange rate (only contract owner can call this)
-(define-public (set-exchange-rate (new-rate uint))
+;; Function to update the minimum required governance tokens
+(define-public (update-min-governance-tokens (new-min uint))
     (begin
         (asserts! (is-eq tx-sender (contract-owner)) ERR_UNAUTHORIZED)
-        (ok (var-set exchange-rate new-rate))
+        (ok (var-set min-governance-tokens new-min))
     )
 )
 
-;; Get the current exchange rate
-(define-read-only (get-exchange-rate)
-    (ok (var-get exchange-rate))
+;; Get the current minimum required governance tokens
+(define-read-only (get-min-governance-tokens)
+    (ok (var-get min-governance-tokens))
 )
 
 ;; Helper function to get contract owner
