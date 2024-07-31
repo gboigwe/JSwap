@@ -1,14 +1,16 @@
 ;; Error codes
-(define-constant ERR_INSUFFICIENT_BALANCE (err u1))
-(define-constant ERR_TRANSFER_FAILED (err u2))
-(define-constant ERR_UNAUTHORIZED (err u3))
-(define-constant ERR_INVALID_SWAP_STATUS (err u4))
-(define-constant ERR_ORACLE_UPDATE_FAILED (err u5))
-;; Add this to your existing error constants
-(define-constant ERR_INVALID_INPUT (err u6))
-
-;; Oracle contract
-;; (define-constant ORACLE_CONTRACT .btc-stx-oracle)
+;; (define-constant ERR_INSUFFICIENT_BALANCE (err u1 "Insufficient STX balance"))
+(define-constant ERR_INSUFFICIENT_BALANCE (err {code: u1, message: "Insufficient STX balance"}))
+;; (define-constant ERR_TRANSFER_FAILED (err u2 "STX transfer failed"))
+(define-constant ERR_TRANSFER_FAILED (err {code: u2, message: "STX transfer failed"}))
+;; (define-constant ERR_UNAUTHORIZED (err u3 "Unauthorized access"))
+(define-constant ERR_UNAUTHORIZED (err {code: u3, message: "Unauthorized access"}))
+;; (define-constant ERR_INVALID_SWAP_STATUS (err u4 "Invalid swap status"))
+(define-constant ERR_INVALID_SWAP_STATUS (err {code: u4, message: "Invalid swap status"}))
+;; (define-constant ERR_ORACLE_UPDATE_FAILED (err u5 "Failed to update oracle data"))
+(define-constant ERR_ORACLE_UPDATE_FAILED (err {code: u5, message: "Failed to update oracle data"}))
+;; (define-constant ERR_INVALID_INPUT (err u6 "Invalid input parameters"))
+(define-constant ERR_INVALID_INPUT (err {code: u6, message: "Invalid input parameters"}))
 
 ;; Governance token
 (define-constant GOVERNANCE_TOKEN .governance-token)
@@ -34,11 +36,9 @@
     (let
         (
             (sender tx-sender)
-            ;; (exchange-rate (unwrap! (contract-call? ORACLE_CONTRACT get-exchange-rate) ERR_ORACLE_UPDATE_FAILED))
             (exchange-rate u10000) ;; Mock exchange rate: 1 BTC = 10000 STX
             (stx-amount (* btc-amount exchange-rate))
             (expiry (+ block-height u144)) ;; Set expiry to ~24 hours (assuming 10-minute blocks)
-            ;; (user-balance (unwrap! (contract-call? GOVERNANCE_TOKEN get-balance sender) ERR_UNAUTHORIZED))
             (user-balance u1000) ;; Mock governance token balance
         )
         (asserts! (not (var-get swap-in-progress)) ERR_INVALID_SWAP_STATUS)
@@ -65,9 +65,9 @@
         (var-set swap-in-progress false)
         (map-delete pending-swaps sender)
         
-        (match (as-contract (stx-transfer? (get stx-amount swap) tx-sender sender))
+        (match (stx-transfer? (get stx-amount swap) (as-contract tx-sender) sender)
             success (ok (get stx-amount swap))
-            error ERR_TRANSFER_FAILED
+            error ERR_TRANSFER_FAILED  ;; Use the predefined error constant
         )
     )
 )
@@ -93,7 +93,7 @@
         (asserts! (is-eq tx-sender (var-get contract-owner)) ERR_UNAUTHORIZED)
         (asserts! (and (>= new-min MIN_GOVERNANCE_TOKENS) 
                        (<= new-min MAX_GOVERNANCE_TOKENS)) 
-                       (err u6)) ;; New error code for invalid input
+                  ERR_INVALID_INPUT)
         (ok (var-set min-governance-tokens new-min))
     )
 )
@@ -106,6 +106,6 @@
 ;; Helper function to get contract owner
 (define-data-var contract-owner principal tx-sender)
 
-(define-public (get-contract-owner)
+(define-read-only (get-contract-owner)
     (ok (var-get contract-owner))
 )
