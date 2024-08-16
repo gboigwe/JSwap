@@ -14,13 +14,20 @@ function SwapForm() {
     setStxEstimate(amount ? (parseFloat(amount) * 10000).toFixed(2) : '');
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!btcAmount) {
       alert('Please enter a BTC amount');
       return;
     }
-    initiateSwap(doContractCall, btcAmount);
+    try {
+      await initiateSwap(btcAmount);
+      alert('Swap initiated successfully');
+      props.onSwapInitiated();
+    } catch (error) {
+      console.error('Failed to initiate swap:', error);
+      alert('Failed to initiate swap. Please try again.');
+    }
   };
 
   return (

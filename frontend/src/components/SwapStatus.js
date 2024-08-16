@@ -27,6 +27,7 @@ function SwapStatus() {
   const handleComplete = async () => {
     try {
       await completeSwap();
+      alert('Swap completed successfully');
       fetchStatus();
     } catch (err) {
       setError('Failed to complete swap');
@@ -37,6 +38,7 @@ function SwapStatus() {
   const handleCancel = async () => {
     try {
       await cancelSwap();
+      alert('Swap cancelled successfully');
       fetchStatus();
     } catch (err) {
       setError('Failed to cancel swap');
