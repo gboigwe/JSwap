@@ -1,131 +1,47 @@
-import { Clarinet, Tx, Chain, Account, types } from 'https://deno.land/x/clarinet@v1.0.0/index.ts';
-import { assertEquals } from 'https://deno.land/std@0.90.0/testing/asserts.ts';
+const { describe, expect, it, beforeEach } = require("vitest");
 
-Clarinet.test({
-    name: "Ensure that user can initiate a swap",
-    async fn(chain: Chain, accounts: Map<string, Account>) {
-        const deployer = accounts.get('deployer')!;
-        const user1 = accounts.get('wallet_1')!;
+describe("JSwap Contract Tests", () => {
+  const deployer = simnet.getAccounts().get("deployer")!;
+  const user1 = simnet.getAccounts().get("wallet_1")!;
+  const user2 = simnet.getAccounts().get("wallet_2")!;
 
-        let block = chain.mineBlock([
-            Tx.contractCall('jswap', 'initiate-swap', [types.uint(100000000)], user1.address)
-        ]);
+  beforeEach(() => {
+    // Reset the simnet before each test
+    simnet.mineEmptyBlock();
+  });
 
-        assertEquals(block.receipts.length, 1);
-        assertEquals(block.height, 2);
-        block.receipts[0].result.expectOk().expectBool(true);
-    },
+  it("ensures user can initiate a swap", () => {
+    const { result } = simnet.callPublicFn("jswap", "initiate-swap", [100000000n], user1);
+    expect(result).toBeOk().toBeTrue();
+  });
+
+  it("ensures user can't initiate a swap without sufficient balance", () => {
+    const { result } = simnet.callPublicFn("jswap", "initiate-swap", [10000000000000n], user1);
+    expect(result).toBeErr().toBeUint(1); // ERR_INSUFFICIENT_BALANCE
+  });
+
+  it("ensures user can complete a swap", () => {
+    simnet.callPublicFn("jswap", "initiate-swap", [100000000n], user1);
+    const { result } = simnet.callPublicFn("jswap", "complete-swap", [], user1);
+    expect(result).toBeOk().toBeUint(1000000000000n); // 100000000 * 10000 (exchange rate)
+  });
+
+  it("ensures user can cancel a swap", () => {
+    simnet.callPublicFn("jswap", "initiate-swap", [100000000n], user1);
+    const { result } = simnet.callPublicFn("jswap", "cancel-swap", [], user1);
+    expect(result).toBeOk().toBeTrue();
+  });
+
+  it("ensures only contract owner can update minimum governance tokens", () => {
+    const { result: ownerResult } = simnet.callPublicFn("jswap", "update-min-governance-tokens", [200n], deployer);
+    expect(ownerResult).toBeOk().toBeTrue();
+
+    const { result: userResult } = simnet.callPublicFn("jswap", "update-min-governance-tokens", [300n], user1);
+    expect(userResult).toBeErr().toBeUint(3); // ERR_UNAUTHORIZED
+  });
+
+  it("ensures get-min-governance-tokens returns correct value", () => {
+    const { result } = simnet.callReadOnlyFn("jswap", "get-min-governance-tokens", [], deployer);
+    expect(result).toBeOk().toBeUint(100n); // Initial value
+  });
 });
-
-Clarinet.test({
-    name: "Ensure that user can't initiate a swap without sufficient balance",
-    async fn(chain: Chain, accounts: Map<string, Account>) {
-        const deployer = accounts.get('deployer')!;
-        const user1 = accounts.get('wallet_1')!;
-
-        let block = chain.mineBlock([
-            Tx.contractCall('jswap', 'initiate-swap', [types.uint(10000000000000)], user1.address)
-        ]);
-
-        assertEquals(block.receipts.length, 1);
-        assertEquals(block.height, 2);
-        block.receipts[0].result.expectErr().expectUint(1); // ERR_INSUFFICIENT_BALANCE
-    },
-});
-
-Clarinet.test({
-    name: "Ensure that user can complete a swap",
-    async fn(chain: Chain, accounts: Map<string, Account>) {
-        const deployer = accounts.get('deployer')!;
-        const user1 = accounts.get('wallet_1')!;
-
-        let block = chain.mineBlock([
-            Tx.contractCall('jswap', 'initiate-swap', [types.uint(100000000)], user1.address),
-            Tx.contractCall('jswap', 'complete-swap', [], user1.address)
-        ]);
-
-        assertEquals(block.receipts.length, 2);
-        assertEquals(block.height, 2);
-        block.receipts[0].result.expectOk().expectBool(true);
-        block.receipts[1].result.expectOk().expectUint(1000000000000); // 100000000 * 10000 (exchange rate)
-    },
-});
-
-Clarinet.test({
-    name: "Ensure that user can cancel a swap",
-    async fn(chain: Chain, accounts: Map<string, Account>) {
-        const deployer = accounts.get('deployer')!;
-        const user1 = accounts.get('wallet_1')!;
-
-        let block = chain.mineBlock([
-            Tx.contractCall('jswap', 'initiate-swap', [types.uint(100000000)], user1.address),
-            Tx.contractCall('jswap', 'cancel-swap', [], user1.address)
-        ]);
-
-        assertEquals(block.receipts.length, 2);
-        assertEquals(block.height, 2);
-        block.receipts[0].result.expectOk().expectBool(true);
-        block.receipts[1].result.expectOk().expectBool(true);
-    },
-});
-
-Clarinet.test({
-    name: "Ensure that only contract owner can update minimum governance tokens",
-    async fn(chain: Chain, accounts: Map<string, Account>) {
-        const deployer = accounts.get('deployer')!;
-        const user1 = accounts.get('wallet_1')!;
-
-        let block = chain.mineBlock([
-            Tx.contractCall('jswap', 'update-min-governance-tokens', [types.uint(200)], deployer.address),
-            Tx.contractCall('jswap', 'update-min-governance-tokens', [types.uint(300)], user1.address)
-        ]);
-
-        assertEquals(block.receipts.length, 2);
-        assertEquals(block.height, 2);
-        block.receipts[0].result.expectOk().expectBool(true);
-        block.receipts[1].result.expectErr().expectUint(3); // ERR_UNAUTHORIZED
-    },
-});
-
-Clarinet.test({
-    name: "Ensure that get-min-governance-tokens returns correct value",
-    async fn(chain: Chain, accounts: Map<string, Account>) {
-        const deployer = accounts.get('deployer')!;
-
-        let block = chain.mineBlock([
-            Tx.contractCall('jswap', 'get-min-governance-tokens', [], deployer.address)
-        ]);
-
-        assertEquals(block.receipts.length, 1);
-        assertEquals(block.height, 2);
-        block.receipts[0].result.expectOk().expectUint(100); // Initial value
-    },
-});
-
-
-
-
-
-
-
-
-// import { describe, expect, it } from "vitest";
-
-// const accounts = simnet.getAccounts();
-// const address1 = accounts.get("wallet_1")!;
-
-// /*
-//   The test below is an example. To learn more, read the testing documentation here:
-//   https://docs.hiro.so/clarinet/feature-guides/test-contract-with-clarinet-sdk
-// */
-
-// describe("example tests", () => {
-//   it("ensures simnet is well initalised", () => {
-//     expect(simnet.blockHeight).toBeDefined();
-//   });
-
-//   // it("shows an example", () => {
-//   //   const { result } = simnet.callReadOnlyFn("counter", "get-counter", [], address1);
-//   //   expect(result).toBeUint(0);
-//   // });
-// });
